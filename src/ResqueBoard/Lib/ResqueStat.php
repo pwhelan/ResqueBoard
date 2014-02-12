@@ -619,6 +619,10 @@ class ResqueStat
             $conditions['t']['$lt'] = new \MongoDate($options['date_before']);
         }
 
+        if (!empty($options['job_id'])) {
+            $conditions['d.job_id'] = $options['job_id'];
+        }
+        
         $results = array();
 
         $jobsCollection = Service::Mongo()->selectCollection(Service::$settings['Mongo']['database'], $options['event_type'] . '_events');
@@ -653,6 +657,7 @@ class ResqueStat
                 $temp['job_id'] = $cursor['d']['args']['payload']['id'];
             }
 
+            $temp['log'] = $cursor['d']['log'];
             $temp['event_type'] = $options['event_type'];
 
             $results[] = $temp;
