@@ -537,7 +537,7 @@ class ResqueStat
                     ));
             }
         }
-        
+
         $jobs = $this->formatJobs($pendingJobs);
         array_walk(
             $jobs,
@@ -633,7 +633,7 @@ class ResqueStat
         if (!empty($options['job_id'])) {
             $conditions['d.job_id'] = $options['job_id'];
         }
-        
+
         $results = array();
 
         $jobsCollection = Service::Mongo()->selectCollection(Service::$settings['Mongo']['database'], $options['event_type'] . '_events');
@@ -915,7 +915,7 @@ class ResqueStat
         foreach ($jobsCursor as $successJob) {
             $jobs[$successJob['d']['job_id']]['status'] = ResqueStat::JOB_STATUS_COMPLETE;
             $jobs[$successJob['d']['job_id']]['took'] = $successJob['d']['time'];
-            unset($jobIds[array_search($successJob['d']['job_id'], $jobIds)]);
+            array_splice($jobIds, array_search($successJob['d']['job_id'], $jobIds), 1);
         }
 
         if (!empty($jobIds)) {
@@ -927,7 +927,7 @@ class ResqueStat
                 $jobs[$failedJob['d']['job_id']]['log'] = $failedJob['d']['log'];
                 $jobs[$failedJob['d']['job_id']]['took'] = $failedJob['d']['time'];
                 $pipelineCommands[] = array('get', 'failed:' . $failedJob['d']['job_id']);
-                unset($jobIds[array_search($failedJob['d']['job_id'], $jobIds)]);
+                array_splice($jobIds, array_search($failedJob['d']['job_id'], $jobIds), 1);
             }
 
             $failedTrace = array_filter(Service::Redis()->pipeline($pipelineCommands));
@@ -943,7 +943,7 @@ class ResqueStat
             $jobsCursor = Service::Mongo()->selectCollection(Service::$settings['Mongo']['database'], 'process_events')->find(array('d.job_id' => array('$in' => $jobIds)));
             foreach ($jobsCursor as $processJob) {
                 $jobs[$processJob['d']['job_id']]['status'] = ResqueStat::JOB_STATUS_RUNNING;
-                unset($jobIds[array_search($processJob['d']['job_id'], $jobIds)]);
+                array_splice($jobIds, array_search($processJob['d']['job_id'], $jobIds), 1);
             }
         }
         if (!empty($jobIds)) {
