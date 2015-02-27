@@ -77,7 +77,7 @@ class ResqueStat
             self::JOB_STATUS_COMPLETE => 'done',
             self::JOB_STATUS_SCHEDULED => 'movescheduled'
         );
-
+        
         if ($type === null) {
             $stats = array_combine(array_keys($validType), array_fill(0, count($validType), 0));
         } elseif (array_key_exists($type, $validType)) {
@@ -85,11 +85,18 @@ class ResqueStat
         } else {
             return false;
         }
-
-        foreach ($stats as $key => $value) {
-            $stats[$key] = Service::Mongo()->selectCollection(Service::$settings['Mongo']['database'], $validType[$key] . '_events')->count();
+        
+        foreach ($stats as $key => $value)
+        {
+            $stats[$key] = Service::Mongo()
+                ->selectCollection(
+                    Service::$settings['Mongo']['database'], Service::$settings['Mongo']['collection']
+                )
+                ->count(['context.type' => $validType[$key]]);
+            
+            // $stats[$key] = Service::Mongo()->selectCollection(Service::$settings['Mongo']['database'], $validType[$key] . '_events')->count();
         }
-
+        
         return $type === null ? $stats : $stats[$type];
     }
 
@@ -151,11 +158,16 @@ class ResqueStat
      */
     public function getWorker($workerId)
     {
+        die("WORKER ID = {$workerId}");
+        //$collection = Service::Mongo()->selectCollection(Service::$settings['Mongo']['database'], 'start_events');
+        $collection = Service::Mongo()->selectCollection(
+            Service::$settings['Mongo']['database'],
+            Service::$settings['Mongo']['collection']
+        );
+        
+        $workerStatsMongo = $collection->findOne(['context.worker' => $workerId], ['context.queues']);
 
-        $collection = Service::Mongo()->selectCollection(Service::$settings['Mongo']['database'], 'start_events');
-        $workerStatsMongo = $collection->findOne(array('d.worker' => $workerId), array('d.queues'));
-
-        $workerFullName = $workerId . ':' . implode(',', $workerStatsMongo['d']['queues']);
+        $workerFullName = $workerId . ':' . implode(',', $workerStatsMongo['context']['queues']);
         list($host, $process) = explode(':', $workerId, 2);
 
         return array(
@@ -196,9 +208,12 @@ class ResqueStat
      */
     public function getQueues($fields = array(), $queues = array())
     {
-
-        $queuesCollection = Service::Mongo()->selectCollection(Service::$settings['Mongo']['database'], 'got_events');
-
+        // got
+        $queuesCollection = Service::Mongo()->selectCollection(
+            Service::$settings['Mongo']['database'], 
+            Service::$settings['Mongo']['database']
+        );
+        
         if (empty($queues)) {
             $queues = $this->getAllQueues();
         }
@@ -219,20 +234,20 @@ class ResqueStat
             $lastRefresh = Service::Mongo()
                 ->selectCollection(Service::$settings['Mongo']['database'], 'map_reduce_stats')
                 ->findOne(array('_id' => 'queue_stats'), array("date", "stats"));
-
+            
             $now = new \MongoDate();
 
-            $conditions = array();
+            $conditions = ['context.type' => 'got'];
 
             if (isset($lastRefresh['date'])) {
                 $conditions['t'] = array('$gt' => $now);
             }
 
-            $queues = $queuesCollection->distinct('d.args.queue', $conditions);
+            $queues = $queuesCollection->distinct('context.args.queue', $conditions);
 
             $results = isset($lastRefresh['stats']) ? $lastRefresh['stats'] : array();
             foreach ($queues as $q) {
-                $conditions['d.args.queue'] = $q;
+                $conditions['context.args.queue'] = $q;
                 $results[$q] = $queuesCollection->count($conditions) + (isset($results[$q]) ? $results[$q] : 0);
             }
 
@@ -278,7 +293,7 @@ class ResqueStat
             }
 
         }
-
+        
         if (in_array('workerscount', $fields)) {
             $workers = $this->getWorkers();
 
@@ -315,22 +330,22 @@ class ResqueStat
     public function getJobs($options = array())
     {
 
-        $default = array(
-                'workerId' => null,
-                'jobId' => null,
-                'page' => 1,
-                'limit' => null,
-                'sort' => array('t' => -1),
-                'status' => null,
-                'type' => 'find',
-                'date_after' => null,
-                'date_before' => null,
-                'class' => null,
-                'queue' => null,
-                'worker' => array(),
-                'format' => true
-            );
-
+        $default = [
+            'workerId' => null,
+            'jobId' => null,
+            'page' => 1,
+            'limit' => null,
+            'sort' => array('t' => -1),
+            'status' => null,
+            'type' => 'find',
+            'date_after' => null,
+            'date_before' => null,
+            'class' => null,
+            'queue' => null,
+            'worker' => array(),
+            'format' => true
+        ];
+        
         $options = array_merge($default, $options);
 
         if ($options['date_before'] !== null && !is_int($options['date_before'])) {
@@ -346,26 +361,32 @@ class ResqueStat
         }
 
 
-        $jobsCollection = Service::Mongo()->selectCollection(Service::$settings['Mongo']['database'], 'got_events');
-
-        $conditions = array();
-
+        //$jobsCollection = Service::Mongo()->selectCollection(Service::$settings['Mongo']['database'], 'got_events');
+        $jobsCollection = Service::Mongo()->selectCollection(
+            Service::$settings['Mongo']['database'],
+            Service::$settings['Mongo']['collection']
+        );
+        
+        
+        $conditions = ['context.type' => 'got'];
+        
+        
         if (!empty($options['jobId'])) {
             if (!is_array($options['jobId'])) {
                 $options['jobId'] = array($options['jobId']);
             }
-            $conditions['d.args.payload.id'] = array('$in' => $options['jobId']);
+            $conditions['context.args.payload.id'] = array('$in' => $options['jobId']);
         } else {
             if ($options['workerId'] !== null) {
-                $conditions['d.worker'] = $options['workerId'];
+                $conditions['context.worker'] = $options['workerId'];
             }
 
             if (!empty($options['class'])) {
-                $conditions['d.args.payload.class'] = array('$in' => array_map('trim', explode(',', $options['class'])));
+                $conditions['context.args.payload.class'] = array('$in' => array_map('trim', explode(',', $options['class'])));
             }
 
             if (!empty($options['queue'])) {
-                $conditions['d.args.queue'] = array('$in' => array_map('trim', explode(',', $options['queue'])));
+                $conditions['context.args.queue'] = array('$in' => array_map('trim', explode(',', $options['queue'])));
             }
 
             if (!empty($options['worker'])) {
@@ -379,26 +400,29 @@ class ResqueStat
                     $exclude = array_diff($workers, $options['worker']);
 
                     if (!empty($exclude)) {
-                        $conditions['d.worker'] = array('$nin' => $exclude);
+                        $conditions['context.worker'] = array('$nin' => $exclude);
                     }
                 } else {
-                    $conditions['d.worker'] = array('$in' => $options['worker']);
+                    $conditions['context.worker'] = array('$in' => $options['worker']);
                 }
             }
 
             if ($options['status'] === self::JOB_STATUS_FAILED) {
-                $cursor = Service::Mongo()->selectCollection(Service::$settings['Mongo']['database'], 'fail_events')
-                    ->find(array(), array('d.job_id'))
+                $cursor = Service::Mongo()->selectCollection(
+                    Service::$settings['Mongo']['database'], 
+                    Service::$settings['Mongo']['collection']
+                )
+                    ->find(array('context.type' => 'fail'), array('context.job_id'))
                     ->sort($options['sort'])
                     ->limit($options['limit']);
                 $ids = array();
                 foreach ($cursor as $c) {
                     $ids[] = $c['d']['job_id'];
                 }
-                $conditions['d.args.payload.id'] = array('$in' => $ids);
+                $conditions['context.args.payload.id'] = array('$in' => $ids);
             }
         }
-
+        
         if (!empty($options['date_after'])) {
             $conditions['t']['$gte'] = new \MongoDate($options['date_after']);
         }
@@ -409,7 +433,7 @@ class ResqueStat
 
         $jobsCursor = $jobsCollection->find($conditions);
         $jobsCursor->sort($options['sort']);
-
+        
         if (!empty($options['page']) && !empty($options['limit'])) {
             $jobsCursor->skip(($options['page']-1) * $options['limit'])->limit($options['limit']);
         }
@@ -524,7 +548,7 @@ class ResqueStat
                 $pendingJobs[] = array_merge(
                     $jobs[$i]
                     ,array(
-                    'd' => array(
+                    'context' => array(
                         'args' => array(
                             'queue' => $queue,
                             'payload' => array(
@@ -871,19 +895,20 @@ class ResqueStat
     {
         $jobs = array();
         foreach ($cursor as $doc) {
-            $jobs[$doc['d']['args']['payload']['id']] = array(
+            //debug_print_backtrace();
+            $jobs[$doc['context']['args']['payload']['id']] = [
                             'time' => isset($doc['t']) ? date('c', $doc['t']->sec) : null,
-                            'queue' => $doc['d']['args']['queue'],
-                            'worker' => isset($doc['d']['worker']) ? $doc['d']['worker'] : null,
-                            'level' => isset($doc['d']['level']) ? $doc['d']['level'] : null,
-                            'class' => $doc['d']['args']['payload']['class'],
-                            'args' => var_export($doc['d']['args']['payload']['args'][0], true),
-                            'job_id' => $doc['d']['args']['payload']['id']
+                            'queue' => $doc['context']['args']['queue'],
+                            'worker' => isset($doc['context']['worker']) ? $doc['context']['worker'] : null,
+                            'level' => isset($doc['context']['level']) ? $doc['context']['level'] : null,
+                            'class' => $doc['context']['args']['payload']['class'],
+                            'args' => var_export($doc['context']['args']['payload']['args'][0], true),
+                            'job_id' => $doc['context']['args']['payload']['id']
 
-            );
+            ];
 
 
-            $jobs[$doc['d']['args']['payload']['id']]['took'] = isset($doc['d']['time']) ? $doc['d']['time'] : null;
+            $jobs[$doc['context']['args']['payload']['id']]['took'] = isset($doc['context']['time']) ? $doc['context']['time'] : null;
 
         }
 
