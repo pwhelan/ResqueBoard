@@ -3,7 +3,7 @@
   *** Warning ***
   Experimental and quick branch to refactor out Cube from RB.
   Does *NOT* support any of the graphs/stats. Is *NOT* backward compatible.
-  Might just burn your toast, kill your pets and end your latest FTL run,
+  Might just burn your toast, flood your internet connection and end your latest FTL run,
   You have been WARNED!
 
 ResqueBoard is an analytics software for PHP Resque. Monitor your workers health
