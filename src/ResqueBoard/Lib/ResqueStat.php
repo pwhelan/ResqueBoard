@@ -23,6 +23,267 @@ namespace ResqueBoard\Lib;
 
 use ResqueBoard\Lib\Service\Service;
 
+class ResqueStatCursor implements \Iterator
+{
+    protected $cursor;
+    
+    
+    public function __construct($cursor)
+    {
+        $this->cursor = $cursor;
+    }
+    
+    public function current()
+    {
+        $cur = $this->cursor->current();
+        
+        $ret = [];
+        
+        foreach ($cur as $key => $val) {
+            if (substr($key, 0, 2) == 'd.') {
+                $ret[substr($key)] = substr($key, 2);
+            }
+            else if (substr($key, 0, 8) == 'context.') {
+                $ret[substr($key)] = substr($key, 8);
+            }
+            else {
+                $ret[$key] = $val;
+            }
+        }
+        
+        return $ret;
+    }
+    
+    public function next()
+    {
+        return $this->cursor->next();
+    }
+    
+    public function key()
+    {
+        return $this->cursor->key();
+    }
+    
+    public function valid()
+    {
+        return $this->cursor->valid();
+    }
+    
+    public function rewind()
+    {
+        return $this->cursor->rewind();
+    }
+    
+    public function __call($func, $args)
+    {
+        return call_user_func_array([$this->cursor, $func], $args);
+    }
+}
+
+class ResqueStatQuery
+{
+    protected $event;
+    protected $conditions = [];
+    
+    
+    public function __construct($event)
+    {
+        $this->event = $event;
+    }
+    
+    public static function event($event)
+    {
+        return new static($event);
+    }
+    
+    public function count($conditions = [])
+    {
+        $conds = [];
+        
+        foreach ($conditions as $col => $cond) {
+            if (isset(Service::$settings['Mongo']['collection'])) {
+                if ($col == 'datetime') {
+                    $conds[$col] = $cond;
+                }
+                else {
+                    $conds['context.' . $col] = $cond;
+                }
+            }
+            else {
+                $conds['d.' . $col] = $cond;
+            }
+        }
+        
+        if (isset(Service::$settings['Mongo']['collection']))
+        {
+            $conds['context.type'] = $this->event;
+            
+            return Service::Mongo()
+                ->selectCollection(
+                    Service::$settings['Mongo']['database'], 
+                    Service::$settings['Mongo']['collection']
+                )
+                ->count($conds);
+        }
+        else
+        {
+            return Service::Mongo()
+                ->selectCollection(
+                    Service::$settings['Mongo']['database'],
+                    $this->event . '_events'
+                )
+                ->count($conds);
+        }
+    }
+
+    public function findOne($conditions, $projection = null)
+    {
+        $conds = [];
+        
+        foreach ($conditions as $col => $cond) {
+            if (isset(Service::$settings['Mongo']['collection'])) {
+                if ($col == 'datetime') {
+                    $conds[$col] = $cond;
+                }
+                else {
+                    $conds['context.' . $col] = $cond;
+                }
+            }
+            else {
+                $conds['d.' . $col] = $cond;
+            }
+        }
+        
+        $col = isset(Service::$settings['Mongo']['collection']) ? 
+            Service::Mongo()
+                ->selectCollection(
+                    Service::$settings['Mongo']['database'], 
+                    Service::$settings['Mongo']['collection']
+                ) :
+            Service::Mongo()
+                ->selectCollection(
+                    Service::$settings['Mongo']['database'], 
+                    $this->event . '_events'
+                );
+        
+        if (isset(Service::$settings['Mongo']['collection'])) {
+            $conds['context.type'] = $this->event;
+        }
+        
+        if (!empty($projection)) {
+            $res = $col->findOne($conds, $projection);
+        }
+        else {
+            $res = $col->findOne($conds);
+        }
+        
+        $ret = [];
+        
+        foreach ($res as $key => $val) {
+            if (substr($key, 0, 2) == 'd.') {
+                $ret[substr($key)] = substr($key, 2);
+            }
+            else if (substr($key, 0, 8) == 'context.') {
+                $ret[substr($key)] = substr($key, 8);
+            }
+            else {
+                $ret[$key] = $val;
+            }
+        }
+        
+        return $ret;
+    }
+    
+    public function find($conditions, $projection = null)
+    {
+        $conds = [];
+        
+        foreach ($conditions as $col => $cond) {
+            if (isset(Service::$settings['Mongo']['collection'])) {
+                if ($col == 'datetime') {
+                    $conds[$col] = $cond;
+                }
+                else {
+                    $conds['context.' . $col] = $cond;
+                }
+            }
+            else {
+                $conds['d.' . $col] = $cond;
+            }
+        }
+        
+        $col = isset(Service::$settings['Mongo']['collection']) ? 
+            Service::Mongo()
+                ->selectCollection(
+                    Service::$settings['Mongo']['database'], 
+                    Service::$settings['Mongo']['collection']
+                ) :
+            Service::Mongo()
+                ->selectCollection(
+                    Service::$settings['Mongo']['database'], 
+                    $this->event . '_events'
+                );
+        
+        if (isset(Service::$settings['Mongo']['collection'])) {
+            $conds['context.type'] = $this->event;
+        }
+        
+        if (!empty($projection)) {
+            return new ResqueStatCursor($col->find($conds, $projection));
+        }
+        else {
+            return new ResqueStatCursor($col->find($conds));
+        }
+    }
+    
+    // distinct('args.queue')
+    public function distinct($field)
+    {
+        if (isset(Service::$settings['Mongo']['collection'])) {
+            $field = 'context.' . $field;
+        }
+        else {
+            $field = 'd.' . $col;
+        }
+        
+        $col = isset(Service::$settings['Mongo']['collection']) ? 
+            Service::Mongo()
+                ->selectCollection(
+                    Service::$settings['Mongo']['database'], 
+                    Service::$settings['Mongo']['collection']
+                ) :
+            Service::Mongo()
+                ->selectCollection(
+                    Service::$settings['Mongo']['database'], 
+                    $this->event . '_events'
+                );
+
+        if (isset(Service::$settings['Mongo']['collection'])) {
+            $res = $col->distinct($field, ['context.type' => $this->event]);
+        }
+        else {
+            $res = $col->distinct($field);
+        }
+        
+        $ret = [];
+        
+        foreach ($res as $key => $val) {
+            if (substr($key, 0, 2) == 'd.') {
+                $ret[substr($key)] = substr($key, 2);
+            }
+            else if (substr($key, 0, 8) == 'context.') {
+                $ret[substr($key)] = substr($key, 8);
+            }
+            else {
+                $ret[$key] = $val;
+            }
+        }
+        
+        return $ret;
+    }
+    
+}
+
 /**
  * ResqueStat class
  *
@@ -60,14 +321,20 @@ class ResqueStat
     {
 
     }
-
+    
+    protected function event($event_type)
+    {
+        
+    }
+    
     /**
      * Return count of each jobs status
      *
      * @param string $type Filter stats by this job type
      *
      * @since 1.0.0
-     * @return array indexed by job status if more than one job status requested, else int
+     * @return array indexed by job status if more than one job status
+     *               requested, else int
      */
     public function getStats($type = null)
     {
@@ -79,22 +346,18 @@ class ResqueStat
         );
         
         if ($type === null) {
-            $stats = array_combine(array_keys($validType), array_fill(0, count($validType), 0));
+            $stats = array_combine(
+                array_keys($validType), 
+                array_fill(0, count($validType), 0)
+            );
         } elseif (array_key_exists($type, $validType)) {
             $stats[$type] = 0;
         } else {
             return false;
         }
         
-        foreach ($stats as $key => $value)
-        {
-            $stats[$key] = Service::Mongo()
-                ->selectCollection(
-                    Service::$settings['Mongo']['database'], Service::$settings['Mongo']['collection']
-                )
-                ->count(['context.type' => $validType[$key]]);
-            
-            // $stats[$key] = Service::Mongo()->selectCollection(Service::$settings['Mongo']['database'], $validType[$key] . '_events')->count();
+        foreach ($stats as $key => $value) {
+            $stats[$key] = ResqueStatQuery::event($validType[$key])->count();
         }
         
         return $type === null ? $stats : $stats[$type];
@@ -158,23 +421,23 @@ class ResqueStat
      */
     public function getWorker($workerId)
     {
-        die("WORKER ID = {$workerId}");
         //$collection = Service::Mongo()->selectCollection(Service::$settings['Mongo']['database'], 'start_events');
+        /*
         $collection = Service::Mongo()->selectCollection(
             Service::$settings['Mongo']['database'],
             Service::$settings['Mongo']['collection']
         );
-        
-        $workerStatsMongo = $collection->findOne(['context.worker' => $workerId], ['context.queues']);
+        */
+        $workerStatsMongo = ResqueStatQuery::event('start')->findOne(['worker' => $workerId], ['queues']);
 
-        $workerFullName = $workerId . ':' . implode(',', $workerStatsMongo['context']['queues']);
+        $workerFullName = $workerId . ':' . implode(',', $workerStatsMongo['queues']);
         list($host, $process) = explode(':', $workerId, 2);
 
         return array(
             'fullname' => $workerFullName,
             'host' => $host,
             'process' => $process,
-            'queues' => $workerStatsMongo['d']['queues'],
+            'queues' => $workerStatsMongo['queues'],
             'start' => new \DateTime(Service::Redis()->get('worker:' . $workerFullName . ':started')),
             'processed' => (int)Service::Redis()->get('stat:processed:' . $workerFullName),
             'failed' => (int)Service::Redis()->get('stat:failed:' . $workerFullName)
@@ -208,12 +471,6 @@ class ResqueStat
      */
     public function getQueues($fields = array(), $queues = array())
     {
-        // got
-        $queuesCollection = Service::Mongo()->selectCollection(
-            Service::$settings['Mongo']['database'], 
-            Service::$settings['Mongo']['database']
-        );
-        
         if (empty($queues)) {
             $queues = $this->getAllQueues();
         }
@@ -236,19 +493,19 @@ class ResqueStat
                 ->findOne(array('_id' => 'queue_stats'), array("date", "stats"));
             
             $now = new \MongoDate();
-
-            $conditions = ['context.type' => 'got'];
-
+            $conditions = [];
+            
             if (isset($lastRefresh['date'])) {
-                $conditions['t'] = array('$gt' => $now);
+                $conditions['date'] = array('$gt' => $now);
             }
 
-            $queues = $queuesCollection->distinct('context.args.queue', $conditions);
+            $queues = ResqueStatQuery::event('got')->distinct('args.queue');
 
             $results = isset($lastRefresh['stats']) ? $lastRefresh['stats'] : array();
             foreach ($queues as $q) {
-                $conditions['context.args.queue'] = $q;
-                $results[$q] = $queuesCollection->count($conditions) + (isset($results[$q]) ? $results[$q] : 0);
+                $conditions['args.queue'] = $q;
+                $results[$q] = ResqueStatQuery::event('got')->count($conditions) + 
+                    (isset($results[$q]) ? $results[$q] : 0);
             }
 
             Service::Mongo()
@@ -347,6 +604,7 @@ class ResqueStat
         ];
         
         $options = array_merge($default, $options);
+        $conditions = [];
 
         if ($options['date_before'] !== null && !is_int($options['date_before'])) {
             $options['date_before'] = strtotime($options['date_before']);
@@ -360,33 +618,22 @@ class ResqueStat
             return $this->getPendingJobs($options);
         }
 
-
-        //$jobsCollection = Service::Mongo()->selectCollection(Service::$settings['Mongo']['database'], 'got_events');
-        $jobsCollection = Service::Mongo()->selectCollection(
-            Service::$settings['Mongo']['database'],
-            Service::$settings['Mongo']['collection']
-        );
-        
-        
-        $conditions = ['context.type' => 'got'];
-        
-        
         if (!empty($options['jobId'])) {
             if (!is_array($options['jobId'])) {
                 $options['jobId'] = array($options['jobId']);
             }
-            $conditions['context.args.payload.id'] = array('$in' => $options['jobId']);
+            $conditions['args.payload.id'] = array('$in' => $options['jobId']);
         } else {
             if ($options['workerId'] !== null) {
-                $conditions['context.worker'] = $options['workerId'];
+                $conditions['worker'] = $options['workerId'];
             }
 
             if (!empty($options['class'])) {
-                $conditions['context.args.payload.class'] = array('$in' => array_map('trim', explode(',', $options['class'])));
+                $conditions['args.payload.class'] = array('$in' => array_map('trim', explode(',', $options['class'])));
             }
 
             if (!empty($options['queue'])) {
-                $conditions['context.args.queue'] = array('$in' => array_map('trim', explode(',', $options['queue'])));
+                $conditions['args.queue'] = array('$in' => array_map('trim', explode(',', $options['queue'])));
             }
 
             if (!empty($options['worker'])) {
@@ -400,38 +647,37 @@ class ResqueStat
                     $exclude = array_diff($workers, $options['worker']);
 
                     if (!empty($exclude)) {
-                        $conditions['context.worker'] = array('$nin' => $exclude);
+                        $conditions['worker'] = array('$nin' => $exclude);
                     }
                 } else {
-                    $conditions['context.worker'] = array('$in' => $options['worker']);
+                    $conditions['worker'] = array('$in' => $options['worker']);
                 }
             }
 
             if ($options['status'] === self::JOB_STATUS_FAILED) {
-                $cursor = Service::Mongo()->selectCollection(
-                    Service::$settings['Mongo']['database'], 
-                    Service::$settings['Mongo']['collection']
-                )
-                    ->find(array('context.type' => 'fail'), array('context.job_id'))
+                
+                $cursor = ResqueStatQuery::event('fail')
+                    ->find($conditions, ['job_id'])
                     ->sort($options['sort'])
                     ->limit($options['limit']);
+                
                 $ids = array();
                 foreach ($cursor as $c) {
-                    $ids[] = $c['d']['job_id'];
+                    $ids[] = $c['job_id'];
                 }
-                $conditions['context.args.payload.id'] = array('$in' => $ids);
+                $conditions['args.payload.id'] = array('$in' => $ids);
             }
         }
         
         if (!empty($options['date_after'])) {
-            $conditions['t']['$gte'] = new \MongoDate($options['date_after']);
+            $conditions['date']['$gte'] = new \MongoDate($options['date_after']);
         }
 
         if (!empty($options['date_before'])) {
-            $conditions['t']['$lte'] = new \MongoDate($options['date_before']);
+            $conditions['date']['$lte'] = new \MongoDate($options['date_before']);
         }
 
-        $jobsCursor = $jobsCollection->find($conditions);
+        $jobsCursor = ResqueStatQuery::event('got')->find($conditions);
         $jobsCursor->sort($options['sort']);
         
         if (!empty($options['page']) && !empty($options['limit'])) {
@@ -498,10 +744,7 @@ class ResqueStat
 
         $results = array();
 
-        $jobsDoneCollection = Service::Mongo()->selectCollection(Service::$settings['Mongo']['database'], 'done_events');
-        $jobsFailCollection = Service::Mongo()->selectCollection(Service::$settings['Mongo']['database'], 'fail_events');
-
-        $jobsDoneCursor = $jobsDoneCollection->find($conditions, array('t' => true));
+        $jobsDoneCursor = ResqueStatQuery::event('done')->find($conditions, array('t' => true));
         foreach ($jobsDoneCursor as $job) {
             if (isset($results[$job['t']->sec])) {
                 $results[$job['t']->sec] += 1;
@@ -510,7 +753,7 @@ class ResqueStat
             }
         }
 
-        $jobsFailCursor = $jobsFailCollection->find($conditions, array('t' => true));
+        $jobsFailCursor = ResqueStatQuery::event('fail')->find($conditions, array('t' => true));
         foreach ($jobsFailCursor as $job) {
             if (isset($results[$job['t']->sec])) {
                 $results[$job['t']->sec] += 1;
@@ -994,13 +1237,26 @@ class ResqueStat
      */
     private function setupIndexes()
     {
-
-        Service::Mongo()->selectCollection(Service::$settings['Mongo']['database'], 'got_events')->ensureIndex('d.args.queue');
-        Service::Mongo()->selectCollection(Service::$settings['Mongo']['database'], 'got_events')->ensureIndex('d.args.payload.class');
-        Service::Mongo()->selectCollection(Service::$settings['Mongo']['database'], 'got_events')->ensureIndex('d.worker');
-        Service::Mongo()->selectCollection(Service::$settings['Mongo']['database'], 'fail_events')->ensureIndex('d.job_id');
-        Service::Mongo()->selectCollection(Service::$settings['Mongo']['database'], 'done_events')->ensureIndex('d.job_id');
-        Service::Mongo()->selectCollection(Service::$settings['Mongo']['database'], 'shutdown_events')->ensureIndex('d.worker');
-        Service::Mongo()->selectCollection(Service::$settings['Mongo']['database'], 'start_events')->ensureIndex('d.worker');
+        if (!isset(Service::$settings['Mongo']['collection']))
+        {
+            Service::Mongo()->selectCollection(Service::$settings['Mongo']['database'], 'got_events')->ensureIndex('d.args.queue');
+            Service::Mongo()->selectCollection(Service::$settings['Mongo']['database'], 'got_events')->ensureIndex('d.args.payload.class');
+            Service::Mongo()->selectCollection(Service::$settings['Mongo']['database'], 'got_events')->ensureIndex('d.worker');
+            Service::Mongo()->selectCollection(Service::$settings['Mongo']['database'], 'fail_events')->ensureIndex('d.job_id');
+            Service::Mongo()->selectCollection(Service::$settings['Mongo']['database'], 'done_events')->ensureIndex('d.job_id');
+            Service::Mongo()->selectCollection(Service::$settings['Mongo']['database'], 'shutdown_events')->ensureIndex('d.worker');
+            Service::Mongo()->selectCollection(Service::$settings['Mongo']['database'], 'start_events')->ensureIndex('d.worker');
+        }
+        else {
+            $collection = Service::Mongo()->selectCollection(
+                Service::$settings['Mongo']['database'],
+                Service::$settings['Mongo']['collection']
+            );
+            
+            $collection->ensureIndex('context.args.queue', ['sparse' => true]);
+            $collection->ensureIndex('context.args.payload.class', ['sparse' => true]);
+            $collection->ensureIndex('context.job_id', ['sparse' => true]);
+            $collection->ensureIndex('context.worker', ['sparse' => true]);
+        }
     }
 }
