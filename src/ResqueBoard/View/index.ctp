@@ -17,6 +17,9 @@
  * @since      1.0.0
  * @license    MIT License (http://www.opensource.org/licenses/mit-license.php)
  */
+
+use ResqueBoard\Lib\Service\Service;
+
 ?>
 
 <?php \ResqueBoard\Lib\PageHelper::renderJobStats($stats); ?>
@@ -24,10 +27,12 @@
 <div class="full-width"></div>
 
 <div class="ftr-bloc" ng-controller="lastestJobGraphController">
+	<?php if (!isset(Service::$settings['Mongo']['collection'])): ?>
 	<h3>Last activities</h3>
 	<div id="lastest-jobs" ng-show="_init==1"></div>
-	<placeholder status="_init" error-code="_errorCode" loading-content-name="lastest job activities"
-	content-name="active workers" icon="icon-cogs" init="init()"></placeholder>
+		<placeholder status="_init" error-code="_errorCode" loading-content-name="lastest job activities"
+			content-name="active workers" icon="icon-cogs" init="init()"></placeholder>
+	<?php endif; ?>
 	<div id="job-details" class="modal hide">
 		<div class="modal-header">
 			<button type="button" class="close" data-dismiss="modal">×</button>
@@ -47,5 +52,7 @@
 
 <div class="span6">
  	<ng-include src="'partials/queues-table.html'"ng-cloak></ng-include>
-	<ng-include src="'partials/latest-jobs-heatmap.html'" ng-cloak></ng-include>
+	<?php if (!isset(Service::$settings['Mongo']['collection'])): ?>
+		<ng-include src="'partials/latest-jobs-heatmap.html'" ng-cloak></ng-include>
+	<?php endif; ?>
 </div>

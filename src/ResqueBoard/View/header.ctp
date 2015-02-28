@@ -17,6 +17,9 @@
  * @since      1.0.0
  * @license    MIT License (http://www.opensource.org/licenses/mit-license.php)
  */
+
+use ResqueBoard\Lib\Service\Service;
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -34,10 +37,13 @@
 
 				$serviceStatus = array(
 					'Redis' => false,
-					'Mongo' => false,
-					'Cube' => false
+					'Mongo' => false
 				);
-
+				
+				if (!isset(Service::$settings['Mongo']['collection']))
+				{
+					$serviceStatus[] = 'Cube';
+				}
 				try {
 					\ResqueBoard\Lib\Service\Service::Redis();
 					$serviceStatus['Redis'] = true;
