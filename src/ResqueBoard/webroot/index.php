@@ -233,6 +233,7 @@ $app->map(
                 $jobId = $searchToken = ltrim($params['job_id'], '#');
                 $jobs = $resqueStat->getJobs(array('jobId' => $jobId));
                 $pagination->totalResult = $resqueStat->getJobs(array_merge(array('jobId' => $jobId), array('type' => 'count')));
+                $logs = $resqueStat->getLogs(['job_id' => $params['job_id'], 'event_type' => 'log']);
             } else {
                 $conditions = array(
                     'page' => $searchData['page'],
@@ -263,6 +264,7 @@ $app->map(
                     $jobs = array();
                 }
 
+                $logs = [];
                 $pagination->totalResult = $resqueStat->getJobs(array_merge($conditions, array('type' => 'count')));
             }
 
@@ -280,7 +282,8 @@ $app->map(
                     'errors' => $errors,
                     'searchData' => $searchData,
                     'searchToken' => $searchToken,
-                    'pagination' => $pagination
+                    'pagination' => $pagination,
+                    'logs' => $logs
                 )
             );
 
@@ -350,7 +353,7 @@ $app->get(
                 'month' => array('step' => ResqueBoard\Lib\ResqueStat::CUBE_STEP_1HOUR)
                 );
 
-            $start = new DateTime($start);
+            $start = new DateTime(str_replace(' ','+',$start));
 
             $rangeWhitelist = array_merge_recursive(
                 $rangeWhitelist,

@@ -86,8 +86,19 @@
 			</div>
 
 			<?php
-
 			\ResqueBoard\Lib\JobHelper::renderJobs($jobs, 'No jobs found', 'infinite-scroll');
+			?>
+			
+			<h1>Logs</h1>
+			<pre>
+			<?php foreach($logs as $log): ?>
+
+<?= $log['log'] ?>
+			<?php endforeach; ?>
+
+			</pre>
+			
+			<?php
 			\ResqueBoard\Lib\PageHelper::renderPagination($pagination);
 
 
