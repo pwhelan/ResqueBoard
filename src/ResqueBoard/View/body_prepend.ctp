@@ -17,6 +17,9 @@
  * @since      2.0.0
  * @license    MIT License (http://www.opensource.org/licenses/mit-license.php)
  */
+
+use ResqueBoard\Lib\Service\Service;
+
 ?>
 <div id="main"<?php if (isset($ngController)) {
     echo ' ng-controller="' . $ngController . '"';
@@ -25,7 +28,10 @@
         <?php
 
             foreach ($navs as $link => $nav) {
-
+                
+                if ($link == 'logs' && isset(Service::$settings['Mongo']['collection'])) {
+                    continue;
+                }
                 $class = array();
                 $selected = '';
 
@@ -70,6 +76,9 @@
                 if (isset($nav['submenu'])) {
                     echo '<ul class="dropdown-menu" role="menu" aria-labelledby="menu-' . $nav['link'] . '">';
                     foreach($nav['submenu'] as $i => $options) {
+                        if ($link == 'jobs' && substr($i, 0, 5) != 'view_' && isset(Service::$settings['Mongo']['collection'])) {
+                            continue;
+                        }
                         if ($options === '') {
                             echo '<li class="divider" role="presentation"></li>';
                         } else {
