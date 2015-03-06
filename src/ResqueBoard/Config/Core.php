@@ -35,17 +35,18 @@ $settings = array(
         'port' => 1081
     ),
     'readOnly' => true,
-    'resqueConfig' => __DIR__ . DIRECTORY_SEPARATOR . './resque.ini',
+    'resqueConfig' => __DIR__ . '/../../../../click4time.current/fresque.ini'  // __DIR__ . DIRECTORY_SEPARATOR . './resque.ini',
     //'timezone' => 'America/Montreal'
 );
 
 $ini = parse_ini_file($settings['resqueConfig'], true);
 
+
 function parse_mongo_target($log)
 {
     // Use the Mongo Schema
     preg_match(
-        '~mongodb\:\/\/([^\:\,]+)(\:|)([\d]+)\,([a-zA-Z0-9]+)\,([a-zA-Z0-9]+)~',
+        '~mongodb\:\/\/([^\:\,]+)(\:|)([\d]+)\,([a-zA-Z0-9-_]+)\,([a-zA-Z0-9-_]+)~',
         $log['target'], 
         $m
     );
