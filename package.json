@@ -14,9 +14,6 @@
     "url": "http://kamisama.me"
   },
   "license": "MIT",
-  "dependencies": {
-    "cube": ">=0.2.8"
-  },
   "repository": {
     "type": "git",
     "url": "https://github.com/kamisama/ResqueBoard.git"

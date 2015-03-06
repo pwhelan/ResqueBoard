@@ -39,12 +39,62 @@ $settings = array(
     //'timezone' => 'America/Montreal'
 );
 
+$ini = parse_ini_file($settings['resqueConfig'], true);
+
+function parse_mongo_target($log)
+{
+    // Use the Mongo Schema
+    preg_match(
+        '~mongodb\:\/\/([^\:\,]+)(\:|)([\d]+)\,([a-zA-Z0-9]+)\,([a-zA-Z0-9]+)~',
+        $log['target'], 
+        $m
+    );
+    if ($m)
+    {
+        return [
+            'host'		=> $m[1],
+            'port'		=> strlen($m[3]) && (int)$m[3] ? $m[3] : 27017,
+            'database'	=> $m[4],
+            'collection'	=> $m[5]
+        ];
+    }
+}
+
+function parse_settings_from_ini($ini)
+{
+    $ret= ['Redis'	=> [
+        'host'		=> @$ini['Redis']['host'],
+        'port'		=> @$ini['Redis']['port'],
+        'database'	=> @$ini['Redis']['database'],
+        'prefix'	=> @$ini['Redis']['namespace'],
+        'password'	=> ''
+    ]];
+    
+    if ($ini['Log']['handler'] == 'MongoDB')
+    {
+        $ret['Mongo'] = parse_mongo_target($ini['Log']);
+    }
+    else
+    {
+        //$ret['Mongo'] = 
+    }
+    // Much harder to keep Cube support
+    //'Cube'	=> parse_log
+    
+    return $ret;
+
+}
+
+ResqueBoard\Lib\Service\Service::$settings = parse_settings_from_ini($ini);
+
+
 /**
  * Service settings
  * All database connection settings
  *
  * @var array
  */
+/*
 ResqueBoard\Lib\Service\Service::$settings = array(
     'Redis' => array(
         'host' => '127.0.0.1',
@@ -63,6 +113,7 @@ ResqueBoard\Lib\Service\Service::$settings = array(
         'port' => 1081
     )
 );
+*/
 
 /**
  * Default number of items to display for pagination
