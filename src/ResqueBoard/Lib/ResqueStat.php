@@ -35,20 +35,15 @@ class ResqueStatCursor implements \Iterator
     
     public function current()
     {
-        $cur = $this->cursor->current();
+        $ret = $this->cursor->current();
         
-        $ret = [];
-        
-        foreach ($cur as $key => $val) {
-            if (substr($key, 0, 2) == 'd.') {
-                $ret[substr($key)] = substr($key, 2);
-            }
-            else if (substr($key, 0, 8) == 'context.') {
-                $ret[substr($key)] = substr($key, 8);
-            }
-            else {
-                $ret[$key] = $val;
-            }
+        if (isset($ret['d']))
+        {
+            $ret['context'] = $ret['d'];
+        }
+        if (isset($ret['t']))
+        {
+            $ret['datetime'] = new \MongoDate($d['t']->sec);
         }
         
         return $ret;
@@ -76,6 +71,19 @@ class ResqueStatCursor implements \Iterator
     
     public function __call($func, $args)
     {
+        if ($func == 'sort' || $func == 'fields')
+        {
+            if (isset($args[0]['t']))
+            {
+                $args[0]['datetime'] = $args[0]['t'];
+                unset($args[0]['t']);
+            }
+            if (isset($args[0]['d']))
+            {
+                $args[0]['context'] = $args[0]['d'];
+                unset($args[0]['d']);
+            }
+        }
         return call_user_func_array([$this->cursor, $func], $args);
     }
 }
