@@ -906,13 +906,13 @@ class ResqueStat
         }
 
         if (!empty($options['job_id'])) {
-            $conditions['d.job_id'] = $options['job_id'];
+            $conditions['job_id'] = $options['job_id'];
         }
 
         $results = array();
 
-        $jobsCollection = Service::Mongo()->selectCollection(Service::$settings['Mongo']['database'], $options['event_type'] . '_events');
-
+        $jobsCollection = ResqueStatQuery::event($options['event_type']);
+        
         $jobsCursor = $jobsCollection->find($conditions);
         $jobsCursor->sort($options['sort']);
 
@@ -927,23 +927,23 @@ class ResqueStat
         foreach ($jobsCursor as $cursor) {
             $temp = array();
 
-            $temp['date'] = new \DateTime('@' . $cursor['t']->sec);
+            $temp['date'] = $cursor['datetime']->toDateTime();
 
-            if (isset($cursor['d']['worker'])) {
-                $temp['worker'] = $cursor['d']['worker'];
+            if (isset($cursor['context']['worker'])) {
+                $temp['worker'] = $cursor['context']['worker'];
             }
 
-            if (isset($cursor['d']['level'])) {
-                $temp['level'] = $cursor['d']['level'];
+            if (isset($cursor['context']['level'])) {
+                $temp['level'] = $cursor['context']['level'];
             }
 
-            if (isset($cursor['d']['job_id'])) {
-                $temp['job_id'] = $cursor['d']['job_id'];
-            } else if (isset($cursor['d']['args']['payload']['id'])) {
-                $temp['job_id'] = $cursor['d']['args']['payload']['id'];
+            if (isset($cursor['context']['job_id'])) {
+                $temp['job_id'] = $cursor['context']['job_id'];
+            } else if (isset($cursor['context']['args']['payload']['id'])) {
+                $temp['job_id'] = $cursor['context']['args']['payload']['id'];
             }
 
-            $temp['log'] = $cursor['d']['log'];
+            $temp['log'] = $cursor['context']['log'];
             $temp['event_type'] = $options['event_type'];
 
             $results[] = $temp;
@@ -1153,13 +1153,14 @@ class ResqueStat
         foreach ($cursor as $doc) {
             //debug_print_backtrace();
             $jobs[$doc['context']['args']['payload']['id']] = [
-                            'time' => isset($doc['t']) ? date('c', $doc['t']->sec) : null,
+                            'time' => isset($doc['datetime']) ? date('c', $doc['datetime']->sec) : null,
                             'queue' => $doc['context']['args']['queue'],
                             'worker' => isset($doc['context']['worker']) ? $doc['context']['worker'] : null,
                             'level' => isset($doc['context']['level']) ? $doc['context']['level'] : null,
                             'class' => $doc['context']['args']['payload']['class'],
                             'args' => var_export($doc['context']['args']['payload']['args'][0], true),
-                            'job_id' => $doc['context']['args']['payload']['id']
+                            'job_id' => $doc['context']['args']['payload']['id'],
+                            'original' => $doc
 
             ];
 
@@ -1187,23 +1188,28 @@ class ResqueStat
 
 
 
-        $jobsCursor = Service::Mongo()->selectCollection(Service::$settings['Mongo']['database'], 'done_events')->find(array('d.job_id' => array('$in' => array_values($jobIds))));
+        $jobsCursor = ResqueStatQuery::event('done')->find(
+            ['job_id' => ['$in' => array_values($jobIds)]]
+        );
+        
         foreach ($jobsCursor as $successJob) {
-            $jobs[$successJob['d']['job_id']]['status'] = ResqueStat::JOB_STATUS_COMPLETE;
-            $jobs[$successJob['d']['job_id']]['took'] = $successJob['d']['time'];
-            array_splice($jobIds, array_search($successJob['d']['job_id'], $jobIds), 1);
+            $jobs[$successJob['context']['job_id']]['status'] = ResqueStat::JOB_STATUS_COMPLETE;
+            $jobs[$successJob['context']['job_id']]['took'] = $successJob['context']['time'];
+            array_splice($jobIds, array_search($successJob['context']['job_id'], $jobIds), 1);
         }
 
         if (!empty($jobIds)) {
 
-            $jobsCursor = Service::Mongo()->selectCollection(Service::$settings['Mongo']['database'], 'fail_events')->find(array('d.job_id' => array('$in' => array_values($jobIds))));
+            $jobsCursor = ResqueStatQuery::event('fail')->find(
+                ['job_id' => ['$in' => array_values($jobIds)]]
+            );
             $pipelineCommands = array();
             foreach ($jobsCursor as $failedJob) {
-                $jobs[$failedJob['d']['job_id']]['status'] = ResqueStat::JOB_STATUS_FAILED;
-                $jobs[$failedJob['d']['job_id']]['log'] = $failedJob['d']['log'];
-                $jobs[$failedJob['d']['job_id']]['took'] = $failedJob['d']['time'];
-                $pipelineCommands[] = array('get', 'failed:' . $failedJob['d']['job_id']);
-                array_splice($jobIds, array_search($failedJob['d']['job_id'], $jobIds), 1);
+                $jobs[$failedJob['context']['job_id']]['status'] = ResqueStat::JOB_STATUS_FAILED;
+                $jobs[$failedJob['context']['job_id']]['log'] = $failedJob['context']['log'];
+                $jobs[$failedJob['context']['job_id']]['took'] = $failedJob['context']['time'];
+                $pipelineCommands[] = array('get', 'failed:' . $failedJob['context']['job_id']);
+                array_splice($jobIds, array_search($failedJob['context']['job_id'], $jobIds), 1);
             }
 
             $failedTrace = array_filter(Service::Redis()->pipeline($pipelineCommands));
@@ -1216,10 +1222,12 @@ class ResqueStat
         }
 
         if (!empty($jobIds)) {
-            $jobsCursor = Service::Mongo()->selectCollection(Service::$settings['Mongo']['database'], 'process_events')->find(array('d.job_id' => array('$in' => array_values($jobIds))));
+            $jobsCursor = ResqueStatQuery::event('process')->find(
+                ['job_id' => ['$in' => array_values($jobIds)]]
+            );
             foreach ($jobsCursor as $processJob) {
-                $jobs[$processJob['d']['job_id']]['status'] = ResqueStat::JOB_STATUS_RUNNING;
-                array_splice($jobIds, array_search($processJob['d']['job_id'], $jobIds), 1);
+                $jobs[$processJob['context']['job_id']]['status'] = ResqueStat::JOB_STATUS_RUNNING;
+                array_splice($jobIds, array_search($processJob['context']['job_id'], $jobIds), 1);
             }
         }
         if (!empty($jobIds)) {
